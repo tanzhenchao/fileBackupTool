@@ -17,11 +17,11 @@
 ~~~
 fileDir="/data/nextcloud-data"
 backupDir="/backup/nextcloudBackup"
-logFile="/var/log/fileBackup.log"
-lockFullBackupFile="/var/run/fullbackup.lock"
-lockDiffBackupFile="/var/run/diffbackup.lock"
 diffBackupKeeptime="+180"
 ~~~
+- 参数“fileDir”定义需要备份的文件所在目录
+- 参数“backupDir”定义备份文件的存储目录
+- 参数“diffBackupKeeptime”定义备份文件保存的天数
 
 # 2.3 获取帮助
 ~~~
