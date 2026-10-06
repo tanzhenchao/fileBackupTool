@@ -5,10 +5,11 @@ export PATH=$PATH:/bin:/usr/bin:/usr/local/bin
 # directory to backup
 fileDir="/data/nextcloud-data"
 backupDir="/backup/nextcloudBackup"
+diffBackupKeeptime="+180"
+
 logFile="/var/log/fileBackup.log"
 lockFullBackupFile="/var/run/fullbackup.lock"
 lockDiffBackupFile="/var/run/diffbackup.lock"
-diffBackupKeeptime="+180"
 
 fullBackup() {
 	fileDir="$1"
