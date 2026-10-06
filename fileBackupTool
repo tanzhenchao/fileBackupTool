@@ -1,0 +1,137 @@
+#!/bin/bash
+
+export PATH=$PATH:/bin:/usr/bin:/usr/local/bin
+
+# directory to backup
+fileDir="/data/nextcloud-data"
+backupDir="/backup/nextcloudBackup"
+logFile="/var/log/fileBackup.log"
+lockFullBackupFile="/var/run/fullbackup.lock"
+lockDiffBackupFile="/var/run/diffbackup.lock"
+diffBackupKeeptime="+180"
+
+fullBackup() {
+	fileDir="$1"
+	fullBackupDir="$2"
+
+	lockFile="$lockFullBackupFile"
+	if [ -e "$lockFile" ]; then
+    		oldPid=$(cat "$lockFile")
+
+    		if [ ! -z "$oldPid" ]; then
+        		if ps -p "$oldPid" > /dev/null; then
+            			echo "fullBackup is already running with PID $oldPid." | tee -a $logFile
+            			exit 1
+        		fi
+    		fi
+    		rm -f "$lockFile"
+	fi
+	echo $$ > "$lockFile"
+
+	if [ ! -d "$fileDir" ]; then
+		echo "$(date +'%Y-%m-%d %H:%M:%S') No such $fileDir, script exit!" | tee -a $logFile
+ 		exit
+	fi
+
+	if [ ! -d "$fullBackupDir" ]; then
+		echo "$(date +'%Y-%m-%d %H:%M:%S') No such $FullBackupDir, script exit!" | tee -a $logFile
+ 		exit
+	fi
+
+	# Full Backup
+	rsync -vzP -rltD --delete "$fileDir/" "$fullBackupDir/"
+	echo "$0 $(date +'%Y-%m-%d %H:%M:%S') full backup successful!" | tee -a $logFile
+
+	rm -f "$lockFile"
+	exit 0
+}
+
+diffBackup() {
+	fileDir="$1"
+	fullBackupDir="$2"
+	diffBackupDir="$3"
+	echo "$fileDir $fullBackupDir $diffBackupDir"
+
+	lockFile="$lockFullBackupFile"
+	if [ -e "$lockFile" ]; then
+    		oldPid=$(cat "$lockFile")
+
+    		if [ ! -z "$oldPid" ]; then
+        		if ps -p "$oldPid" > /dev/null; then
+            			echo "fullBackup is not yet complete, diffBackup will exit." | tee -a $logFile
+            			exit 1
+        		fi
+    		fi
+	fi
+
+	lockFile="$lockDiffBackupFile"
+	if [ -e "$lockFile" ]; then
+    		oldPid=$(cat "$lockFile")
+
+    		if [ ! -z "$oldPid" ]; then
+        		if ps -p "$oldPid" > /dev/null; then
+            			echo "diffBackup is already running with PID $oldPid." | tee -a $logFile
+            			exit 1
+        		fi
+    		fi
+    		rm -f "$lockFile"
+	fi
+	echo $$ > "$lockFile"
+
+	if [ ! -d "$fileDir" ]; then
+		echo "$(date +'%Y-%m-%d %H:%M:%S') No such $fileDir, script exit!" | tee -a $logFile
+ 		exit
+	fi
+
+	if [ ! -d "$fullBackupDir" ]; then
+		echo "$(date +'%Y-%m-%d %H:%M:%S') No such $FullBackupDir, script exit!" | tee -a $logFile
+ 		exit
+	fi
+
+	if [ ! -d "$diffBackupDir" ]; then
+		echo "$(date +'%Y-%m-%d %H:%M:%S') No such $diffBackupDir, script exit!" | tee -a $logFile
+ 		exit
+	fi
+	rsync -rltD --delete -b -z --backup-dir="$diffBackupDir/" "$fileDir/" "$fullBackupDir/" --itemize-changes --out-format="%i|%n"
+
+	backupDir=$(dirname `dirname "$diffBackupDir"`)
+	#find "$backupDir" -mindepth 1 -maxdepth 1 -type d -mtime $diffBackupKeeptime -exec ls -ld {} \;
+	find "$backupDir" -mindepth 1 -maxdepth 1 -type d -mtime $diffBackupKeeptime -exec rm -rf {} \;
+
+	rm -f "$lockFile"
+	exit 0
+}
+
+case "$1" in
+        monthlyFullBackup)
+                # create backup pat
+		fullBackupDir="$backupDir/monthlyFullBackup"
+		cd "$backupDir"
+		if [ $? != 0 ]; then
+			echo "$(date +'%Y-%m-%d %H:%M:%S') No such $backupDir, script exit!" | tee -a $logFile
+ 			exit
+		fi
+
+		if [ ! -d "$fullBackupDir" ]; then
+			mkdir -p "$fullBackupDir"
+		fi
+		fullBackup "$fileDir" "$fullBackupDir"
+                ;;
+        monthlyDiffBackup)
+		fullBackupDir="$backupDir/monthlyFullBackup"
+		diffBackupDir="$backupDir/monthlyDiffBackup/$(date +%Y-%m-%d)/$(date +%H%M%S)"
+		cd "$backupDir"
+		if [ $? != 0 ]; then
+			echo "$(date +'%Y-%m-%d %H:%M:%S') No such $backupDir, script exit!" | tee -a $logFile
+ 			exit
+		fi
+		if [ ! -d "$diffBackupDir" ]; then
+			mkdir -p "$diffBackupDir"
+		fi
+		diffBackup "$fileDir" "$fullBackupDir" "$diffBackupDir"
+                ;;
+        *)
+                echo "Usage: $0 {monthlyFullBackup|monthlyDiffBackup}"
+                ;;
+esac
+exit 0
